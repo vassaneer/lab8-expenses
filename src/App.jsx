@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import {v4} from 'uuid';
 import axios from 'axios';
+import firebase from './firebase/firebase'
 import { BrowserRouter as Router, Route } from 'react-router-dom';
 
 import Header from './components/Header';
@@ -51,11 +52,22 @@ export default class App extends Component {
 
   loadJsonData = () => {
     // get data from json file: "public/static/data.json"
-    axios.get('/static/data.json')
-      .then( res => {
-        const data = res.data;
-        this.setState( { transactions: data } );
-      });
+    // axios.get('/static/data.json')
+    //   .then( res => {
+    //     const data = res.data;
+    //     console.log(data)
+        // this.setState( { transactions: data } );
+      // });
+    firebase.firestore()
+                .collection('data')
+                .onSnapshot(snapshot=>{
+                  const tran = [];
+                  snapshot.forEach(doc => {
+                    tran.push(doc.data())
+                    // console.log(doc.data().date)
+                  });
+                  this.setState({ transactions:tran });
+                })
   }
 
   componentDidMount() {
@@ -71,13 +83,16 @@ export default class App extends Component {
     } else if ( !isNaN(name)) {
       window.alert('Please fill only TEXT detail in transaction name.');
       return false;
-    } else if (+amount === 0) {
-      window.alert('Amount CANNOT be zero!');
+    } else if(!Number.isInteger(+amount)) {
+      window.alert('NOT A Number');
       return false;
-    }
-  
+    } else if (+amount === 0){
+    window.alert('Amount CANNOT be zero!');
+    return false;
+  }else {
     return true;
   }
+}
 
   addTransaction = (name,amount) => {
 
@@ -89,9 +104,12 @@ export default class App extends Component {
       id: v4(),
       name,
       amount: +amount,
-      date: new Date()
+      date: new Date().getTime()
     }
 
+    firebase.firestore()
+    .collection('data')
+    .add(newTransaction)
     this.state.transactions.unshift(newTransaction);
     this.setState( { transactions: this.state.transactions } );
   }
@@ -99,6 +117,13 @@ export default class App extends Component {
   clearTransactions = () => {
     let ans = window.confirm("You are going to clear all transaction history!!!")
     if (ans) {
+      firebase.firestore()
+      .collection('data')
+      .get().then(function(querySnapshot) {
+        querySnapshot.forEach(function(doc) {
+          doc.ref.delete();
+        });
+      })
       this.setState( { transactions: [] } );
     }
   }
